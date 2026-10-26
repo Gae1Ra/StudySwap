@@ -1,0 +1,128 @@
+const KEY="studyswap_v1";
+const seed=()=>({users:[{u:"ana",c:25},{u:"luis",c:15},{u:"marta",c:30}],me:null,
+notes:[
+{id:1,by:"ana",sub:"CAL101",title:"Límites y derivadas: resumen completo",desc:"Teoremas clave, ejemplos resueltos y errores comunes.",prof:"Dr. Ramírez",sem:"2026-1",price:0,dl:42,body:"Un límite describe el valor al que se acerca f(x) cuando x se acerca a a.\n\nDerivada: f’(x)=lim h→0 [f(x+h)-f(x)]/h.\n\nReglas: producto, cociente y cadena. Error común: olvidar derivar la función interna."},
+{id:2,by:"luis",sub:"PRG201",title:"Estructuras de datos: guía de examen",desc:"Listas, pilas, colas y árboles con complejidad de cada operación.",prof:"Mtra. Soto",sem:"2026-1",price:3,dl:17,body:"Pila (LIFO): push/pop O(1).\nCola (FIFO): enqueue/dequeue O(1).\nÁrbol binario de búsqueda: búsqueda O(log n) promedio, O(n) en el peor caso.\nTabla hash: acceso O(1) promedio."},
+{id:3,by:"marta",sub:"QUI110",title:"Equilibrio químico: fórmulas y ejercicios",desc:"Principio de Le Châtelier y cálculo de Kc con 12 ejercicios.",prof:"Dra. Vega",sem:"2025-2",price:5,dl:9,body:"Kc = [productos]^coef / [reactivos]^coef en el equilibrio.\nLe Châtelier: el sistema se desplaza para contrarrestar el cambio aplicado.\nEjercicio 1: N2 + 3H2 ⇌ 2NH3 ..."}],
+subjects:[{c:"CAL101",n:"Cálculo I",f:"Ciencias"},{c:"PRG201",n:"Estructuras de Datos",f:"Ingeniería"},{c:"QUI110",n:"Química General",f:"Ciencias"},{c:"ECO120",n:"Microeconomía",f:"Economía"}],
+reviews:[{n:1,u:"luis",r:5,t:"Muy claro, me salvó el parcial."},{n:1,u:"marta",r:4,t:"Falta más práctica."},{n:2,u:"ana",r:5,t:"Directo al grano."}],
+owned:{},
+tutors:[{u:"ana",subs:["CAL101"],price:4,slots:["Lun 16:00","Mié 17:00","Vie 12:00"]},{u:"marta",subs:["QUI110","ECO120"],price:5,slots:["Mar 15:00","Jue 18:00"]}],
+bookings:[]});
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!S.users)S=seed();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let view="notes",F={q:"",fac:"",sub:"",min:0},modal=null;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const me=()=>S.users.find(x=>x.u===S.me);
+const sub=c=>S.subjects.find(s=>s.c===c)||{n:c,f:""};
+const avg=id=>{const r=S.reviews.filter(x=>x.n===id);return r.length?r.reduce((a,b)=>a+b.r,0)/r.length:0};
+const stars=v=>"★".repeat(Math.round(v))+"☆".repeat(5-Math.round(v));
+const owns=id=>{const n=S.notes.find(x=>x.id===id);return n.by===S.me||(S.owned[S.me]||[]).includes(id)};
+function toast(t){const d=document.createElement("div");d.className="toast";d.setAttribute("role","status");d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),2600)}
+function go(v){view=v;modal=null;draw()}
+
+function draw(){
+ const A=document.getElementById("app");
+ if(!S.me){A.innerHTML=`<div class="login card"><div class="logo"><span>Study</span>Swap</div>
+ <p class="meta">Comparte apuntes, gana créditos y encuentra tutores entre compañeros. Empiezas con 10 créditos.</p>
+ <form id="lf" class="f"><label>Nombre de usuario<input name="u" required maxlength="30" autocomplete="username"></label><label>Correo universitario<input name="e" type="email" required></label>
+ <button class="btn pri">Crear cuenta o entrar</button></form>
+ <p class="meta">Cuentas de prueba: ana, luis, marta (escribe el nombre y cualquier correo).</p></div>`;
+ document.getElementById("lf").onsubmit=e=>{e.preventDefault();const u=e.target.u.value.trim().toLowerCase();
+  if(!S.users.find(x=>x.u===u))S.users.push({u,c:10});S.me=u;save();draw()};return}
+ const tabs=[["notes","Apuntes"],["tutors","Tutorías"],["upload","Subir apunte"],["me","Mi cuenta"]];
+ A.innerHTML=`<header><div class="logo"><span>Study</span>Swap</div>
+ <nav aria-label="Secciones">${tabs.map(t=>`<button data-v="${t[0]}" class="${view===t[0]?"on":""}">${t[1]}</button>`).join("")}</nav>
+ <div><span class="cred" title="Tus créditos">${me().c} créditos</span> <button class="btn" id="out">Salir</button></div></header>
+ <main>${{notes:vNotes,tutors:vTutors,upload:vUpload,me:vMe}[view]()}</main>${modal||""}`;
+ A.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.v));
+ document.getElementById("out").onclick=()=>{S.me=null;save();draw()};
+ bind();
+}
+
+function vNotes(){
+ const facs=[...new Set(S.subjects.map(s=>s.f))];
+ const list=S.notes.filter(n=>{const s=sub(n.sub);
+  return (!F.q||(n.title+n.desc+n.prof+s.n+n.sub).toLowerCase().includes(F.q.toLowerCase()))&&(!F.fac||s.f===F.fac)&&(!F.sub||n.sub===F.sub)&&avg(n.id)>=F.min});
+ return `<div class="bar"><input id="q" placeholder="Buscar por título, materia o profesor" value="${esc(F.q)}" aria-label="Buscar">
+ <select id="fac" aria-label="Facultad"><option value="">Todas las facultades</option>${facs.map(f=>`<option ${F.fac===f?"selected":""}>${f}</option>`).join("")}</select>
+ <select id="sub" aria-label="Materia"><option value="">Todas las materias</option>${S.subjects.map(s=>`<option value="${s.c}" ${F.sub===s.c?"selected":""}>${s.c} · ${esc(s.n)}</option>`).join("")}</select>
+ <select id="min" aria-label="Valoración mínima">${[0,3,4,5].map(m=>`<option value="${m}" ${F.min==m?"selected":""}>${m?m+"★ o más":"Cualquier valoración"}</option>`).join("")}</select></div>
+ ${list.length?`<div class="grid">${list.map(n=>{const s=sub(n.sub),a=avg(n.id);return `<article class="card"><h3>${esc(n.title)}</h3>
+ <div><span class="tag">${n.sub}</span><span class="tag">${esc(s.f)}</span><span class="tag">${esc(n.sem)}</span></div>
+ <div class="meta">${esc(n.desc)}</div><div class="meta">${esc(s.n)} · ${esc(n.prof)} · por @${esc(n.by)}</div>
+ <div class="meta"><span class="stars">${stars(a)}</span> ${a?a.toFixed(1):"Sin reseñas"} · ${n.dl} descargas</div>
+ <div class="row"><span class="price">${n.price?n.price+" créditos":"Gratis"}</span><button class="btn pri" data-open="${n.id}">${owns(n.id)?"Abrir":"Ver detalles"}</button></div></article>`}).join("")}</div>`
+ :`<div class="empty">Ningún apunte coincide con estos filtros. Prueba con otra materia o sube el primero.</div>`}`;
+}
+
+function noteModal(id){
+ const n=S.notes.find(x=>x.id===id),own=owns(id),rv=S.reviews.filter(x=>x.n===id),can=!own&&me().c>=n.price;
+ const prev=n.body.split("\n").slice(0,2).join("\n");
+ return `<div class="modal" id="md"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(n.title)}">
+ <div class="row"><h2 style="margin:0">${esc(n.title)}</h2><button class="btn" id="cl">Cerrar</button></div>
+ <p class="meta">${esc(sub(n.sub).n)} · ${esc(n.prof)} · @${esc(n.by)}</p>
+ <h3>${own?"Contenido":"Vista previa"}</h3><pre>${esc(own?n.body:prev)}${own?"":"\n"}${own?"":`<span class="blur">${esc(n.body.slice(prev.length,prev.length+160))}</span>`}</pre>
+ ${own?"":`<button class="btn pri" id="buy" ${can?"":"disabled"}>${n.price?`Adquirir por ${n.price} créditos`:"Adquirir gratis"}</button> ${can?"":`<span class="meta">Te faltan ${n.price-me().c} créditos. Sube apuntes o da tutorías para ganar más.</span>`}`}
+ <h3>Reseñas (${rv.length})</h3>${rv.length?rv.map(r=>`<p><span class="stars">${stars(r.r)}</span> <b>@${esc(r.u)}</b><br>${esc(r.t)}</p>`).join(""):`<p class="meta">Aún no hay reseñas.</p>`}
+ ${own&&n.by!==S.me&&!rv.find(r=>r.u===S.me)?`<form class="f" id="rf"><label>Tu valoración<select name="r"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></label><label>Comentario<textarea name="t" required rows="2"></textarea></label><button class="btn pri">Publicar reseña</button></form>`:""}
+ </div></div>`;
+}
+
+function vTutors(){
+ const mine=S.bookings.filter(b=>b.stu===S.me);
+ return `<h2>Tutores disponibles</h2><div class="grid">${S.tutors.map(t=>`<article class="card"><h3>@${esc(t.u)}</h3>
+ <div>${t.subs.map(s=>`<span class="tag">${s} · ${esc(sub(s).n)}</span>`).join("")}</div><div class="price">${t.price} créditos por sesión</div>
+ <div class="row">${t.slots.map(s=>{const taken=S.bookings.some(b=>b.tut===t.u&&b.slot===s);
+  return `<button class="btn" data-book="${t.u}|${s}" ${taken||t.u===S.me?"disabled":""}>${s}${taken?" (ocupado)":""}</button>`}).join("")}</div></article>`).join("")}</div>
+ <h2 style="margin-top:28px">Mis sesiones reservadas</h2>${mine.length?mine.map(b=>`<p>${b.slot} con @${esc(b.tut)} · ${esc(b.mode)}</p>`).join(""):`<p class="meta">Todavía no reservas ninguna sesión.</p>`}`;
+}
+
+function vUpload(){
+ return `<h2>Subir un apunte</h2><form class="f" id="uf">
+ <label>Título<input name="title" required maxlength="150"></label>
+ <label>Materia<select name="sub">${S.subjects.map(s=>`<option value="${s.c}">${s.c} · ${esc(s.n)}</option>`).join("")}</select></label>
+ <label>Profesor<input name="prof" required></label><label>Semestre<input name="sem" required placeholder="2026-2"></label>
+ <label>Descripción<textarea name="desc" rows="2"></textarea></label>
+ <label>Contenido del apunte<textarea name="body" rows="7" required></textarea></label>
+ <label>Precio en créditos (0 = gratis)<input name="price" type="number" min="0" max="50" value="0"></label>
+ <button class="btn pri">Publicar y ganar 2 créditos</button></form>`;
+}
+
+function vMe(){
+ const mn=S.notes.filter(n=>n.by===S.me),t=S.tutors.find(x=>x.u===S.me),lib=(S.owned[S.me]||[]).map(id=>S.notes.find(n=>n.id===id)).filter(Boolean);
+ return `<h2>@${esc(S.me)}</h2><p>Tienes <b>${me().c} créditos</b>. Ganas 2 al publicar y el precio completo cuando alguien adquiere tu apunte.</p>
+ <h3>Mis apuntes (${mn.length})</h3>${mn.map(n=>`<p>${esc(n.title)} · ${n.dl} descargas</p>`).join("")||`<p class="meta">Aún no publicas apuntes.</p>`}
+ <h3>Apuntes adquiridos (${lib.length})</h3>${lib.map(n=>`<p><button class="btn" data-open="${n.id}">Abrir</button> ${esc(n.title)}</p>`).join("")||`<p class="meta">Aún no adquieres apuntes.</p>`}
+ <h3>${t?"Tu perfil de tutor":"Ofrece tutorías"}</h3><form class="f" id="tf">
+ <label>Materias que dominas (códigos separados por coma)<input name="subs" required value="${t?t.subs.join(", "):""}" placeholder="CAL101, PRG201"></label>
+ <label>Precio por sesión en créditos<input name="price" type="number" min="1" max="30" value="${t?t.price:3}"></label>
+ <label>Horarios disponibles (separados por coma)<input name="slots" required value="${t?t.slots.join(", "):""}" placeholder="Lun 16:00, Mié 17:00"></label>
+ <button class="btn pri">${t?"Actualizar perfil":"Registrarme como tutor"}</button></form>
+ <p><button class="btn" id="reset">Restablecer datos de ejemplo</button></p>`;
+}
+
+function bind(){
+ const $=id=>document.getElementById(id);
+ if($("q")){const q=$("q");q.oninput=()=>{F.q=q.value;const p=q.selectionStart;draw();const n=$("q");n.focus();n.setSelectionRange(p,p)};
+  $("fac").onchange=e=>{F.fac=e.target.value;draw()};$("sub").onchange=e=>{F.sub=e.target.value;draw()};$("min").onchange=e=>{F.min=+e.target.value;draw()}}
+ document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{modal=noteModal(+b.dataset.open);modal=modal;window._n=+b.dataset.open;draw()});
+ if($("cl"))$("cl").onclick=()=>{modal=null;draw()};
+ if($("buy"))$("buy").onclick=()=>{const n=S.notes.find(x=>x.id===window._n),u=me();
+  if(u.c<n.price)return;u.c-=n.price;const a=S.users.find(x=>x.u===n.by);if(a)a.c+=n.price;
+  (S.owned[S.me]=S.owned[S.me]||[]).push(n.id);n.dl++;save();toast("Apunte adquirido");modal=noteModal(n.id);draw()};
+ if($("rf"))$("rf").onsubmit=e=>{e.preventDefault();S.reviews.push({n:window._n,u:S.me,r:+e.target.r.value,t:e.target.t.value.trim()});save();toast("Reseña publicada");modal=noteModal(window._n);draw()};
+ document.querySelectorAll("[data-book]").forEach(b=>b.onclick=()=>{const [tu,slot]=b.dataset.book.split("|"),t=S.tutors.find(x=>x.u===tu);
+  if(me().c<t.price)return toast("No tienes créditos suficientes");
+  me().c-=t.price;const tt=S.users.find(x=>x.u===tu);if(tt)tt.c+=t.price;
+  S.bookings.push({stu:S.me,tut:tu,slot,mode:"Virtual o en biblioteca, a acordar"});save();toast("Sesión reservada");draw()});
+ if($("uf"))$("uf").onsubmit=e=>{e.preventDefault();const f=e.target,v=n=>f[n].value.trim();
+  S.notes.push({id:Date.now(),by:S.me,sub:v("sub"),title:v("title"),desc:v("desc"),prof:v("prof"),sem:v("sem"),price:Math.max(0,+f.price.value||0),dl:0,body:f.body.value});
+  me().c+=2;save();toast("Apunte publicado: +2 créditos");go("notes")};
+ if($("tf"))$("tf").onsubmit=e=>{e.preventDefault();const f=e.target,l=s=>s.split(",").map(x=>x.trim()).filter(Boolean);
+  const t={u:S.me,subs:l(f.subs.value.toUpperCase()),price:+f.price.value,slots:l(f.slots.value)};
+  const i=S.tutors.findIndex(x=>x.u===S.me);i<0?S.tutors.push(t):S.tutors[i]=t;save();toast("Perfil de tutor guardado");draw()};
+ if($("reset"))$("reset").onclick=()=>{S=seed();save();draw()};
+}
+draw();
